@@ -41,7 +41,7 @@ import javafx.util.Duration;
  * 
  * @author Brendan Zhang
  * @created 2016-04-24
- * @updated 2015-04-24
+ * @since 2016-05-04
  */
 public class SimpleMediaPlayer extends Application {
 

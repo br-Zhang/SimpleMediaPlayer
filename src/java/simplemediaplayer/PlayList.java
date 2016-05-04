@@ -21,9 +21,10 @@ import javafx.scene.media.MediaView;
 import javafx.util.Duration;
 
 /**
- * Class to represent Playlists.
+ * Class to represent the Playlists used in {@link SimpleMediaPlayer}.
  * 
  * @author Brendan Zhang
+ * @since 2016-05-04
  */
 public class PlayList {
 
