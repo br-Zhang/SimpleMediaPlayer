@@ -2,10 +2,6 @@ package simplemediaplayer;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileWriter;
-import java.io.FilenameFilter;
-import java.io.IOException;
-import java.io.PrintWriter;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,7 +28,6 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
 import javafx.stage.DirectoryChooser;
@@ -50,6 +45,7 @@ import javafx.util.Duration;
  */
 public class SimpleMediaPlayer extends Application {
 
+  PlayList playList = new PlayList();
   // Logger to log information messages to
   Logger LOGGER = Logger.getGlobal();
   // Label to display title of currently playing audio file
@@ -58,8 +54,6 @@ public class SimpleMediaPlayer extends Application {
   private ProgressBar progress = new ProgressBar();
   // Slider to adjust volume of MediaPlayers
   private Slider volumeSlider = new Slider();
-  // List of MediaPlayer of the audio files
-  private List<MediaPlayer> mediaPlayers = new ArrayList<MediaPlayer>();
   // ChangeListener to listen to progress of currently playing MediaPlayer
   private ChangeListener<Duration> progressChangeListener;
   // Path to icon of the application
@@ -148,7 +142,7 @@ public class SimpleMediaPlayer extends Application {
       @Override
       public void handle(ActionEvent event) {
         String defaulPathToSaveTo = "C:/Playlists/playlist.txt";
-        saveCurrentPlayersAsPlayList(defaulPathToSaveTo);
+        playList.saveAsPlayList(defaulPathToSaveTo);
       }
     });
     menuFile.getItems().addAll(menuOpen, menuItemSaveAsPlayList);
@@ -255,30 +249,10 @@ public class SimpleMediaPlayer extends Application {
 
     // Since we modified the source of the audio files to remove annoying to
     // handle characters, re-add them back.
-    source = modifyFixedPathToTitle(source);
+    source = PlayList.modifyFixedPathToTitle(source);
     source = source.substring(source.lastIndexOf("/") + 1);
 
     currentlyPlaying.setText("Currently Playing: " + source);
-  }
-
-  /**
-   * Creates a MediaPlayer from the given path to the audio file. If an error occurs, it will log
-   * it.
-   * 
-   * @param sourcePath The full path to the audio file
-   * @return MediaPlayer for the given audio file
-   */
-  private MediaPlayer createPlayer(String sourcePath) {
-    final MediaPlayer player = new MediaPlayer(new Media(sourcePath));
-
-    player.setOnError(new Runnable() {
-      @Override
-      public void run() {
-        LOGGER.info("Media error occurred: " + player.getError());
-      }
-    });
-
-    return player;
   }
 
   /**
@@ -289,48 +263,8 @@ public class SimpleMediaPlayer extends Application {
   private void setVolume(Number volumeToSetTo) {
     volume = volumeToSetTo;
 
-    for (MediaPlayer mediaPlayer : mediaPlayers) {
+    for (MediaPlayer mediaPlayer : playList.getMediaPlayers()) {
       mediaPlayer.setVolume(volumeToSetTo.doubleValue() / 100);
-    }
-  }
-
-  private void createPlayersForAllFilesInDirectory(File sourceDirectory) {
-    String filePrefix = "file:///";
-    for (String file : sourceDirectory.list(new FilenameFilter() {
-      @Override
-      public boolean accept(File file, String name) {
-        return name.endsWith(".mp3");
-      }
-    })) {
-      mediaPlayers.add(this.createPlayer(
-          filePrefix + modifyPathToFixedPath((sourceDirectory + "\\" + file).replace("\\", "/"))));
-    }
-
-    if (mediaPlayers.isEmpty()) {
-      LOGGER.severe("No audio found in " + sourceDirectory);
-      throw new RuntimeException("No audio found in " + sourceDirectory);
-    }
-  }
-
-  /**
-   * Assumes are filePaths are fixed already.
-   * 
-   * @param filePaths
-   */
-  private void createPlayersForAllFiles(List<String> filePaths) {
-    for (String filePath : filePaths) {
-      mediaPlayers.add(this.createPlayer(filePath));
-    }
-  }
-
-  /**
-   * Stops any currently running MediaPlayer
-   */
-  private void stopAnyRunningTracks() {
-    // Stop any currently running MediaPlayer
-    if (mediaPlayers.size() > 0) {
-      mediaView.getMediaPlayer().stop();
-      mediaPlayers = new ArrayList<MediaPlayer>();
     }
   }
 
@@ -341,42 +275,34 @@ public class SimpleMediaPlayer extends Application {
    * @param sourceDirectory File that represents the directory to search through
    */
   private void setMediaPlayers(File sourceDirectory) {
-    stopAnyRunningTracks();
-    createPlayersForAllFilesInDirectory(sourceDirectory);
-    setupMediaPlayer();
+    playList.stopAnyRunningTracks(mediaView);
+    playList.addAllFilesFromDirectoryIntoPlayList(sourceDirectory);
+    setupMediaPlayerComponents();
   }
 
   /**
    * Sets up the MediaPlayer components (Buttons, Listeners, Song titles, etc.)
    */
-  private void setupMediaPlayer() {
+  private void setupMediaPlayerComponents() {
 
-    // Play each audio file
-    for (int i = 0; i < mediaPlayers.size(); i++) {
-      final MediaPlayer currentPlayer = mediaPlayers.get(i);
-      // Get next player (and account for looping)
-      final MediaPlayer nextPlayer = mediaPlayers.get((i + 1) % mediaPlayers.size());
-      currentPlayer.setOnEndOfMedia(new Runnable() {
-        @Override
-        public void run() {
-          // Remove progress listener from current player
-          currentPlayer.currentTimeProperty().removeListener(progressChangeListener);
-          // Set view to show song title of next song
-          mediaView.setMediaPlayer(nextPlayer);
-          // Play next song
-          nextPlayer.play();
-        }
-      });
-    }
+    // Create a MediaView to show the song title of the MediaPlayers
+    mediaView = new MediaView(playList.getCurrentlyPlaying());
+
+    // Start playing the first track.
+    mediaView.setMediaPlayer(playList.getCurrentlyPlaying());
+    mediaView.getMediaPlayer().play();
+    setCurrentlyPlaying(mediaView.getMediaPlayer());
+
+    playList.startupMediaPlayers(mediaView, progressChangeListener);
 
     // Set action when clicking on Next button
     next.setOnAction(new EventHandler<ActionEvent>() {
-
       @Override
       public void handle(ActionEvent actionEvent) {
         final MediaPlayer currentPlayer = mediaView.getMediaPlayer();
         MediaPlayer nextPlayer =
-            mediaPlayers.get((mediaPlayers.indexOf(currentPlayer) + 1) % mediaPlayers.size());
+            playList.getMediaPlayers().get((playList.getMediaPlayers().indexOf(currentPlayer) + 1)
+                % playList.getMediaPlayers().size());
         mediaView.setMediaPlayer(nextPlayer);
         currentPlayer.currentTimeProperty().removeListener(progressChangeListener);
         currentPlayer.stop();
@@ -406,9 +332,6 @@ public class SimpleMediaPlayer extends Application {
       }
     });
 
-    // Create a MediaView to show the song title of the MediaPlayers
-    mediaView = new MediaView(mediaPlayers.get(0));
-
     // Display the name of the currently playing track.
     mediaView.mediaPlayerProperty().addListener(new ChangeListener<MediaPlayer>() {
       @Override
@@ -423,44 +346,7 @@ public class SimpleMediaPlayer extends Application {
     // maintaining default of 50.
     setVolume(volume);
 
-    // Start playing the first track.
-    mediaView.setMediaPlayer(mediaPlayers.get(0));
-    mediaView.getMediaPlayer().play();
-    setCurrentlyPlaying(mediaView.getMediaPlayer());
-  }
 
-  /**
-   * Saves the current players as a PlayList.
-   * 
-   * @param pathToSavePlayListTo
-   */
-  private void saveCurrentPlayersAsPlayList(String pathToSavePlayListTo) {
-    File fileCurrentPlayList = new File(pathToSavePlayListTo);
-    if (!fileCurrentPlayList.exists()) {
-      fileCurrentPlayList.getParentFile().mkdirs();
-      try {
-        fileCurrentPlayList.createNewFile();
-      } catch (IOException ioe) {
-        LOGGER.severe("An I/O Exception occurred: " + ioe);
-        ioe.printStackTrace();
-      }
-    }
-    List<String> filePaths = new ArrayList<String>();
-    for (MediaPlayer mediaPlayer : mediaPlayers) {
-      String sourcePath = mediaPlayer.getMedia().getSource();
-      filePaths.add(sourcePath);
-    }
-    try {
-      PrintWriter printWriter =
-          new PrintWriter(new FileWriter(fileCurrentPlayList.getAbsolutePath()));
-      for (String filePath : filePaths) {
-        printWriter.println(filePath);
-      }
-      printWriter.close();
-    } catch (IOException ioe) {
-      LOGGER.severe("An I/O Exception occurred: " + ioe);
-      ioe.printStackTrace();
-    }
   }
 
   private void openPlayList(File playListFile) {
@@ -477,24 +363,8 @@ public class SimpleMediaPlayer extends Application {
       fnfe.printStackTrace();
     }
 
-    stopAnyRunningTracks();
-    createPlayersForAllFiles(audioFiles);
-    setupMediaPlayer();
+    playList.stopAnyRunningTracks(mediaView);
+    playList.addAllFilesIntoPlayList(audioFiles);
+    setupMediaPlayerComponents();
   }
-
-  /**
-   * Convenience method used to change a strict file path to a URI encoded path (fixing the path to
-   * match URI specifications).
-   * 
-   * @param path String that contains the file path
-   * @return The file path with URI encoding
-   */
-  private static String modifyPathToFixedPath(String path) {
-    return URIEncoder.encodeURI(path);
-  }
-
-  private static String modifyFixedPathToTitle(String fixedPath) {
-    return URIEncoder.decodeURI(fixedPath);
-  }
-
 }

@@ -92,6 +92,7 @@ public class PlayList {
    * @param filePaths
    */
   public void addAllFilesIntoPlayList(List<String> filePaths) {
+
     for (String filePath : filePaths) {
       mediaPlayers.add(this.createMediaPlayerFromFile(filePath));
     }
@@ -111,8 +112,10 @@ public class PlayList {
         return name.endsWith(".mp3");
       }
     })) {
-      mediaPlayers.add(this.createMediaPlayerFromFile(
-          filePrefix + modifyPathToFixedPath((sourceDirectory + "\\" + file).replace("\\", "/"))));
+      String filePath =
+          filePrefix + modifyPathToFixedPath((sourceDirectory + "\\" + file).replace("\\", "/"));
+      filePaths.add(filePath);
+      mediaPlayers.add(this.createMediaPlayerFromFile(filePath));
     }
 
     if (mediaPlayers.isEmpty()) {
@@ -140,7 +143,7 @@ public class PlayList {
    * 
    * @param mediaView The MediaView associated with this PlayList's MediaPlayer
    */
-  private void stopAnyRunningTracks(MediaView mediaView) {
+  public void stopAnyRunningTracks(MediaView mediaView) {
     // Stop any currently running MediaPlayer
     if (mediaPlayers.size() > 0) {
       mediaView.getMediaPlayer().stop();
@@ -172,6 +175,7 @@ public class PlayList {
    * @param pathToSavePlayListTo Path to save the playlist.txt to
    */
   public void saveAsPlayList(String pathToSavePlayListTo) {
+    System.out.println(this.toString());
     File fileCurrentPlayList = new File(pathToSavePlayListTo);
     if (!fileCurrentPlayList.exists()) {
       fileCurrentPlayList.getParentFile().mkdirs();
@@ -206,7 +210,7 @@ public class PlayList {
         @Override
         public void run() {
           // Remove progress listener from current player
-          getCurrentPlayer().currentTimeProperty().removeListener(progressChangeListener);
+          currentPlayer.currentTimeProperty().removeListener(progressChangeListener);
           // Set view to show song title of next song
           mediaView.setMediaPlayer(nextPlayer);
           // Play next song
@@ -216,7 +220,7 @@ public class PlayList {
     }
   }
 
-  public MediaPlayer getCurrentPlayer() {
+  public MediaPlayer getCurrentlyPlaying() {
     return this.getMediaPlayers().get(0);
   }
 
@@ -227,11 +231,26 @@ public class PlayList {
    * @param path String that contains the file path
    * @return The file path with URI encoding
    */
-  private static String modifyPathToFixedPath(String path) {
+  public static String modifyPathToFixedPath(String path) {
     return URIEncoder.encodeURI(path);
   }
 
-  private static String modifyFixedPathToTitle(String fixedPath) {
+  public static String modifyFixedPathToTitle(String fixedPath) {
     return URIEncoder.decodeURI(fixedPath);
+  }
+
+  /**
+   * Prints a string representation of the PlayList.
+   * 
+   * @return String that contains "Playlist:" followed by each of the file paths of the files in the
+   *         PlayList.
+   * 
+   */
+  public String toString() {
+    String output = "PlayList:\n";
+    for (String file : filePaths) {
+      output += file + "\n";
+    }
+    return output;
   }
 }
